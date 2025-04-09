@@ -15,6 +15,11 @@ import { useNavigate } from "react-router-dom"
 export function UserNav() {
   const navigate = useNavigate()
 
+  const handleLogout = () => {
+    console.log('用户登出')
+    navigate('/')
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -46,7 +51,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/login")}>
+        <DropdownMenuItem onClick={handleLogout}>
           退出登录
           <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
         </DropdownMenuItem>

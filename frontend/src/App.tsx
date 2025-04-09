@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster'
 import Layout from '@/components/layout'
 import {
   Home,
+  Dashboard,
   Chat,
   Text2SQL,
   KnowledgeBase,
@@ -15,10 +16,11 @@ function App() {
   return (
     <>
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
+        <Route path="/app" element={<Layout />}>
+          <Route index element={<Dashboard />} />
           <Route path="chat" element={<Chat />} />
           <Route path="text2sql" element={<Text2SQL />} />
           <Route path="knowledge" element={<KnowledgeBase />} />

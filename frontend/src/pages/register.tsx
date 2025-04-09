@@ -14,7 +14,8 @@ export default function Register() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // TODO: 实现注册逻辑
-    navigate('/')
+    console.log('注册提交', { email, password, confirmPassword })
+    navigate('/app')
   }
 
   return (

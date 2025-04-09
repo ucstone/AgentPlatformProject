@@ -13,7 +13,8 @@ export default function Login() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // TODO: 实现登录逻辑
-    navigate('/')
+    console.log('登录提交', { email, password })
+    navigate('/app')
   }
 
   return (

@@ -39,8 +39,15 @@ instance/
 *.sublime-workspace
 
 # OS generated files
+.DS_Store
 .DS_Store?*~
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db 
+ehthumbs.db
+# macOS specific
+.AppleDouble
+.LSOverride
+Icon?
+Temporary Items/
+Network Trash Folder/ 
