@@ -1,0 +1,46 @@
+# Node.js / Vite / React
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp.*
+coverage/
+.DS_Store
+Thumbs.db
+
+# Python / FastAPI
+venv/
+*.venv
+.venv
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+*.sqlite3
+*.db
+instance/
+.env
+
+# IDE specific
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store?*~
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db 
