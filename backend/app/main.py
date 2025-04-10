@@ -41,8 +41,8 @@ from app.api import (
 )
 
 # 注册路由
-app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
-# app.include_router(chat.router, prefix="/api/chat", tags=["智能客服"])
-# app.include_router(text2sql.router, prefix="/api/text2sql", tags=["Text2SQL"])
-# app.include_router(knowledge_base.router, prefix="/api/knowledge", tags=["知识库"])
-# app.include_router(content_creation.router, prefix="/api/content", tags=["文案创作"]) 
+app.include_router(auth.router, prefix=settings.API_V1_STR)
+# app.include_router(chat.router, prefix=f"{settings.API_V1_STR}/chat", tags=["智能客服"])
+# app.include_router(text2sql.router, prefix=f"{settings.API_V1_STR}/text2sql", tags=["Text2SQL"])
+# app.include_router(knowledge_base.router, prefix=f"{settings.API_V1_STR}/knowledge", tags=["知识库"])
+# app.include_router(content_creation.router, prefix=f"{settings.API_V1_STR}/content", tags=["文案创作"]) 

@@ -4,100 +4,91 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import Any
 
-from app.core.database import get_db
-from app.core.security import (
-    verify_password,
-    get_password_hash,
-    create_access_token,
-    verify_token
-)
+from app.db.deps import get_db
+from app.schemas.user import UserCreate, User, Token
+from app.services.user import get_user_by_email, create_user, verify_password
+from app.services.auth import create_access_token, verify_token
 from app.core.config import settings
-from app.models.user import User
 
-router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+router = APIRouter(prefix="/auth", tags=["认证"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
-@router.post("/register")
-async def register(
-    username: str,
-    email: str,
-    password: str,
+@router.post("/register", response_model=User, status_code=status.HTTP_201_CREATED)
+def register(
+    user_in: UserCreate,
     db: Session = Depends(get_db)
 ) -> Any:
+    """
+    用户注册
+    """
     # 检查用户是否已存在
-    if db.query(User).filter(User.email == email).first():
+    if get_user_by_email(db, email=user_in.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="邮箱已被注册"
         )
-    if db.query(User).filter(User.username == username).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户名已被使用"
-        )
     
     # 创建新用户
-    hashed_password = get_password_hash(password)
-    user = User(
-        email=email,
-        username=username,
-        hashed_password=hashed_password
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = create_user(db, user_in)
     
-    return {"message": "注册成功"}
+    return user
 
-@router.post("/token")
-async def login(
+@router.post("/login", response_model=Token)
+def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ) -> Any:
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    """
+    用户登录，获取访问令牌
+    """
+    # 查找用户
+    user = get_user_by_email(db, email=form_data.username)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
+            detail="邮箱或密码错误",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username},
-        expires_delta=access_token_expires
-    )
+    # 验证密码
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="邮箱或密码错误",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # 创建访问令牌
+    access_token = create_access_token(subject=user.email)
     
     return {
         "access_token": access_token,
         "token_type": "bearer"
     }
 
-@router.get("/me")
-async def read_users_me(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+@router.get("/me", response_model=User)
+def read_users_me(
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
 ) -> Any:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="无效的认证凭据",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    """
+    获取当前登录用户信息
+    """
+    # 验证令牌
+    token_data = verify_token(token)
+    if not token_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的认证凭据",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
-    payload = verify_token(token)
-    if payload is None:
-        raise credentials_exception
+    # 获取用户信息
+    user = get_user_by_email(db, email=token_data.sub)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
     
-    username: str = payload.get("sub")
-    if username is None:
-        raise credentials_exception
-    
-    user = db.query(User).filter(User.username == username).first()
-    if user is None:
-        raise credentials_exception
-    
-    return {
-        "username": user.username,
-        "email": user.email,
-        "is_active": user.is_active
-    } 
+    return user 

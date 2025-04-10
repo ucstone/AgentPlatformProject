@@ -1,20 +1,39 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Link } from 'react-router-dom'
+import { useAuth } from '@/context/auth-context'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const { login } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 获取重定向地址，默认为仪表盘
+  const from = (location.state as any)?.from || '/app'
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: 实现登录逻辑
-    console.log('登录提交', { email, password })
-    navigate('/app')
+    
+    if (!email || !password) {
+      return
+    }
+    
+    setIsSubmitting(true)
+    
+    try {
+      const success = await login(email, password)
+      if (success) {
+        // 登录成功，重定向到之前尝试访问的页面或仪表盘
+        navigate(from, { replace: true })
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -35,6 +54,8 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isSubmitting}
+              placeholder="请输入您的邮箱"
             />
           </div>
           <div className="space-y-2">
@@ -45,10 +66,16 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isSubmitting}
+              placeholder="请输入您的密码"
             />
           </div>
-          <Button type="submit" className="w-full">
-            登录
+          <Button 
+            type="submit" 
+            className="w-full"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? '登录中...' : '登录'}
           </Button>
         </form>
         <div className="text-center text-sm">

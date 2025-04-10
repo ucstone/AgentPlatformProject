@@ -25,53 +25,59 @@
   - 框架: FastAPI (Python)
   - 语言: Python (建议注明版本，如 3.10+)
   - Web 服务器: Uvicorn
-  - 数据库: (待定 - 需要明确选择，如 PostgreSQL, MySQL, SQLite)
-  - ORM: (待定 - 推荐 SQLAlchemy)
+  - 数据库: **MySQL 8.0 (通过 Docker Compose 运行)**
+  - ORM: **SQLAlchemy**
+  - 数据库驱动: **PyMySQL**
+  - 密码哈希: **Passlib (with bcrypt)**
+  - 环境配置: **python-dotenv, Pydantic-Settings**
   - 认证: (待定 - 计划使用 JWT)
   - 代码规范: Ruff, Black (建议配置)
 - **2.3 版本控制:** Git
+- **2.4 容器化:** Docker, Docker Compose (用于运行数据库)
 
 **3. 项目设置与启动 (Project Setup & Running)**
 
 - **3.1 环境要求:**
   - Node.js (建议注明版本，如 v18+) 和 npm/yarn/pnpm
-  - Python (建议注明版本，如 3.10+) 和 pip
+  - Python (建议注明版本，如 3.10+) 和 pip (或 uv)
   - Git
-- **3.2 后端设置:**
+  - **Docker 和 Docker Compose (或 OrbStack 等替代品)**
+- **3.2 数据库启动 (首次):**
+  - 在**项目根目录**下，确保 `docker-compose.yml` 中的密码已修改为强密码。
+  - 运行 `docker-compose up -d` 启动 MySQL 容器。
+- **3.3 后端设置:**
   - `cd backend`
   - 创建虚拟环境: `python -m venv venv` (或 `python3`)
   - 激活虚拟环境: `source venv/bin/activate` (macOS/Linux) 或 `.\venv\Scripts\activate` (Windows)
-  - 安装依赖: `pip install -r requirements.txt`
+  - 安装依赖: `pip install -r requirements.txt` (或 `uv pip install ...`)
   - 配置环境变量:
-    - 复制 `.env.example` (如果创建了) 为 `.env`
-    - 填写必要的环境变量 (如 `DATABASE_URL`, `SECRET_KEY` 等)
-  - 启动开发服务器: `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
-- **3.3 前端设置:**
+    - 创建 `.env` 文件 (已忽略)
+    - 填入 `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DB` (确保密码与 `docker-compose.yml` 一致)。
+    - 设置一个安全的 `SECRET_KEY`。
+  - 启动开发服务器: `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000` (首次启动会自动创建数据库表)
+- **3.4 前端设置:**
   - `cd frontend`
-  - 安装依赖: `npm install` (或 `yarn install` / `pnpm install`)
-  - 配置环境变量: (如果需要，例如 API 地址)
-    - 复制 `.env.example` (如果创建了) 为 `.env`
-    - 填写必要的环境变量
-  - 启动开发服务器: `npm run dev` (通常运行在 `http://localhost:5173`)
-- **3.4 环境变量详解:**
-  - 列出前后端 `.env` 文件中所有必需和可选的环境变量及其用途。
-  - 强调 `.env` 文件不应提交到版本控制。
+  - 安装依赖: `npm install`
+  - 配置环境变量: (如果需要)
+  - 启动开发服务器: `npm run dev`
+- **3.5 环境变量详解:** (应包含后端 `.env` 中新增的数据库和 JWT 变量)
 
 **4. 项目结构 (Project Structure)**
 
-- **4.1 根目录:**
+- **4.1 根目录:** (添加 `docker-compose.yml`)
   - `.git/`: Git 仓库元数据 (已忽略)
   - `.gitignore`: Git 忽略配置
   - `README.md`: 项目说明
   - `backend/`: 后端代码
   - `frontend/`: 前端代码
   - `HANDOVER.md`: 本交接文档
-- **4.2 后端 (`backend/`) 结构:**
-  - `app/`: 核心应用代码
+  - `docker-compose.yml`: Docker 服务定义 (数据库)
+- **4.2 后端 (`backend/`) 结构:** (更新 `db` 和 `models`)
+  - `app/`:
     - `api/`: API 路由模块 (e.g., `auth.py`)
     - `core/`: 配置、核心函数 (e.g., `config.py`)
-    - `db/`: (规划) 数据库连接、会话管理
-    - `models/`: (规划) Pydantic 数据模型、数据库模型 (ORM)
+    - `db/`: **数据库相关 (session.py, base_class.py, base.py, deps.py, init_db.py)**
+    - `models/`: **SQLAlchemy 模型 (user.py)**
     - `services/`: (规划) 业务逻辑服务层
     - `schemas/`: (规划) Pydantic 请求/响应模型
     - `utils/`: (规划) 通用工具函数
@@ -79,7 +85,7 @@
   - `tests/`: (规划) 测试代码
   - `venv/`: (已忽略) Python 虚拟环境
   - `requirements.txt`: Python 依赖列表
-  - `.env`: (已忽略) 环境变量
+  - `.env`: (已忽略) **必需**的环境变量文件
 - **4.3 前端 (`frontend/`) 结构:**
   - `node_modules/`: (已忽略) Node.js 依赖
   - `public/`: 静态资源
@@ -111,9 +117,14 @@
 
 **5. 当前状态与已实现功能 (Current Status & Implemented Features)**
 
-- **5.1 整体进度:** 项目基础框架搭建完成，前后端分离结构明确，核心依赖已安装。
+- **5.1 整体进度:** 项目基础框架搭建完成，**后端数据库集成初步完成**。
 - **5.2 后端:**
-  - FastAPI 应用骨架搭建完成。
+  - FastAPI 应用骨架。
+  - **MySQL 数据库通过 Docker Compose 启动并运行。**
+  - **SQLAlchemy ORM 集成完成，包含数据库引擎、会话管理、模型基类。**
+  - **User 模型 (`models/user.py`) 已定义 (包含 id, email, hashed_password, is_active)。**
+  - **通过 `.env` 和 `core/config.py` 配置数据库连接 (DSN)。**
+  - **实现应用启动时自动创建数据库表 (`db/init_db.py`)。**
   - 基础配置加载 (`core/config.py`)。
   - 认证 API 路由 (`/login`, `/register` in `api/auth.py`) 已定义，但**具体逻辑未实现**。
   - CORS 中间件已配置。
@@ -134,14 +145,9 @@
 
 **6. 后续开发路线图 (Future Development Roadmap)**
 
-- **6.1 后端开发:**
-  - **数据库:** 选择并集成数据库 (e.g., PostgreSQL) 和 ORM (e.g., SQLAlchemy)。
-  - **认证:** 实现用户注册和登录逻辑 (密码哈希, JWT 生成与验证)。
-  - **用户模型:** 定义用户数据库模型和 Pydantic 模型。
-  - **核心 API:** 实现智能体功能的核心 API 接口 (Chat, Text2SQL, Knowledge Base, Content Creation)，包括输入处理、调用相应智能体服务、返回结果。
-  - **错误处理:** 实现统一的 API 错误处理机制。
-  - **依赖注入:** 利用 FastAPI 的依赖注入系统管理服务和数据库会话。
-  - **测试:** 编写单元测试和集成测试。
+- **6.1 后端开发:** (更新数据库部分)
+  - **数据库:** **集成完成，可进行后续开发。** (未来可考虑使用 Alembic 进行数据库迁移管理)
+  - **认证:** **实现用户注册逻辑 (密码哈希) 和登录逻辑 (密码验证, JWT 生成)。**
 - **6.2 前端开发:**
   - **API 集成:** 对接后端 API，实现前后端数据交互。
   - **页面逻辑:** 在 `pages/` 组件中实现具体功能逻辑（状态管理、API 调用、数据显示、用户交互）。
@@ -178,15 +184,23 @@
 
 **8. 关键模块详解 (Key Module Details)**
 
-- **8.1 认证流程 (预期):**
-  - 用户在前端输入邮箱密码 -> 前端发送 POST 请求到后端 `/api/auth/login` -> 后端验证用户信息 -> 成功则生成 JWT Token 返回给前端 -> 前端存储 Token (e.g., localStorage) -> 后续请求在 Header 中携带 Token -> 后端通过中间件或依赖项验证 Token。
-- **8.2 UI 组件库 (`frontend/src/components/ui`):**
+- **8.1 数据库 (`backend/app/db`):**
+  - 使用 SQLAlchemy Core 和 ORM。
+  - `session.py`: 创建 `engine` 和 `SessionLocal`。
+  - `base_class.py`: 定义模型基类 `Base`，自动生成表名。
+  - `base.py`: 用于导入所有模型。
+  - `deps.py`: 提供 `get_db` FastAPI 依赖项用于获取会话。
+  - `init_db.py`: 提供 `init_db` 函数，通过 `Base.metadata.create_all()` 创建表。
+- **8.2 用户模型 (`backend/app/models/user.py`):**
+  - 定义了 `users` 表的结构，包含 email、哈希密码等字段。
+- **8.3 认证流程 (预期):** (需要更新，结合数据库操作)
+- **8.4 UI 组件库 (`frontend/src/components/ui`):**
   - 基于 Radix UI Primitives 和 Tailwind CSS 构建，遵循 Shadcn/ui 的风格和方法。
   - 可复用、可组合、易于定制。
-- **8.3 主题系统 (`frontend/src/components/theme-provider.tsx`):**
+- **8.5 主题系统 (`frontend/src/components/theme-provider.tsx`):**
   - 使用 React Context API 和 localStorage 实现亮/暗模式切换。
   - 通过在 `<html>` 标签上添加 `dark` 类名，并结合 Tailwind 的 `darkMode: 'class'` 配置和 CSS 变量实现样式切换。
-- **8.4 路由 (`frontend/src/App.tsx`):**
+- **8.6 路由 (`frontend/src/App.tsx`):**
   - 使用 React Router DOM v6 定义路由规则。
   - 包含嵌套路由，`Layout` 作为父路由包裹需要公共布局的页面。
 
@@ -207,6 +221,9 @@
 - 请仔细阅读本文档，理解项目背景、架构和当前状态。
 - 按照文档中的步骤设置本地开发环境并成功运行前后端服务。
 - 熟悉项目代码结构，特别是前后端的核心目录和文件。
-- 优先完成后端认证逻辑和数据库集成，这是后续功能的基础。
+- 确保本地 Docker 环境已启动 MySQL 容器 (`docker-compose up -d`)。
+- 在 `backend/.env` 文件中配置正确的数据库密码和 JWT 密钥。
+- 熟悉 `backend/app/db` 和 `backend/app/models` 下的 SQLAlchemy 相关代码。
+- 优先实现 `backend/app/api/auth.py` 中的注册和登录数据库操作逻辑。
 - 在开发新功能前，请遵循开发规范和工作流。
 - **重要：在开发过程中，请持续更新本文档，确保其准确反映项目最新状态。**

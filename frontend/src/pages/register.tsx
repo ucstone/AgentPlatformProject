@@ -1,21 +1,59 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Link } from 'react-router-dom'
+import { useAuth } from '@/context/auth-context'
+import { useToast } from '@/components/ui/use-toast'
 
 export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+  const { register } = useAuth()
+  const { toast } = useToast()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: 实现注册逻辑
-    console.log('注册提交', { email, password, confirmPassword })
-    navigate('/app')
+    
+    // 表单验证
+    if (!email || !password || !confirmPassword) {
+      return
+    }
+    
+    // 检查密码是否匹配
+    if (password !== confirmPassword) {
+      toast({
+        title: "密码不匹配",
+        description: "请确保两次输入的密码相同",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // 检查密码长度
+    if (password.length < 8) {
+      toast({
+        title: "密码太短",
+        description: "密码长度至少需要8个字符",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsSubmitting(true)
+    
+    try {
+      const success = await register(email, password)
+      if (success) {
+        // 注册成功，重定向到登录页面
+        navigate('/login')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -36,6 +74,8 @@ export default function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isSubmitting}
+              placeholder="请输入您的邮箱"
             />
           </div>
           <div className="space-y-2">
@@ -46,6 +86,8 @@ export default function Register() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isSubmitting}
+              placeholder="请输入至少8位密码"
             />
           </div>
           <div className="space-y-2">
@@ -56,10 +98,16 @@ export default function Register() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              disabled={isSubmitting}
+              placeholder="请再次输入密码"
             />
           </div>
-          <Button type="submit" className="w-full">
-            注册
+          <Button 
+            type="submit" 
+            className="w-full"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? '注册中...' : '注册'}
           </Button>
         </form>
         <div className="text-center text-sm">

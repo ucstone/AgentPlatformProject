@@ -10,14 +10,18 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useNavigate } from "react-router-dom"
+import { useAuth } from '@/context/auth-context'
 
 export function UserNav() {
-  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+
+  // 获取用户名的首字母作为头像
+  const getInitials = (email: string) => {
+    return email.charAt(0).toUpperCase()
+  }
 
   const handleLogout = () => {
-    console.log('用户登出')
-    navigate('/')
+    logout()
   }
 
   return (
@@ -26,16 +30,16 @@ export function UserNav() {
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
             <AvatarImage src="/avatars/01.png" alt="@user" />
-            <AvatarFallback>U</AvatarFallback>
+            <AvatarFallback>{user ? getInitials(user.email) : 'U'}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">用户名</p>
+            <p className="text-sm font-medium leading-none">用户</p>
             <p className="text-xs leading-none text-muted-foreground">
-              user@example.com
+              {user?.email || 'user@example.com'}
             </p>
           </div>
         </DropdownMenuLabel>
