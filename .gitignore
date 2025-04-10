@@ -50,4 +50,7 @@ ehthumbs.db
 .LSOverride
 Icon?
 Temporary Items/
-Network Trash Folder/ 
+Network Trash Folder/
+
+# Docker
+docker-compose.yml # 忽略 docker-compose 文件，因为它可能包含敏感信息 

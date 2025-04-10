@@ -1,0 +1,37 @@
+services:
+  db:
+    image: mysql:8.0
+    platform: linux/amd64
+    container_name: agent_platform_mysql
+    restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      MYSQL_DATABASE: agent_platform_db
+      MYSQL_USER: agent_user
+      MYSQL_PASSWORD: your_strong_password # 请务必修改为强密码
+      MYSQL_ROOT_PASSWORD: your_strong_root_password # 请务必修改为强密码
+    ports:
+      - "3306:3306" # 将容器的 3306 端口映射到主机的 3306 端口
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "agent_user",
+          "--password=your_strong_password",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+    driver: local
