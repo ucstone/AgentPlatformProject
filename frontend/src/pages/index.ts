@@ -6,6 +6,7 @@ import KnowledgeBase from './knowledge-base'
 import ContentCreation from './content-creation'
 import Register from './register'
 import Dashboard from './dashboard'
+import ModelSettings from './model-settings'
 
 export {
   Home,
@@ -15,5 +16,6 @@ export {
   KnowledgeBase,
   ContentCreation,
   Register,
-  Dashboard
+  Dashboard,
+  ModelSettings
 } 

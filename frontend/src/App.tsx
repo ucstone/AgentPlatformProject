@@ -11,7 +11,8 @@ import {
   KnowledgeBase,
   ContentCreation,
   Login,
-  Register
+  Register,
+  ModelSettings
 } from '@/pages'
 
 function App() {
@@ -31,9 +32,11 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="chat" element={<Chat />} />
+          <Route path="chat/:sessionId" element={<Chat />} />
           <Route path="text2sql" element={<Text2SQL />} />
           <Route path="knowledge" element={<KnowledgeBase />} />
           <Route path="content" element={<ContentCreation />} />
+          <Route path="model-settings" element={<ModelSettings />} />
         </Route>
       </Routes>
       <Toaster />

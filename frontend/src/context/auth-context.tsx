@@ -57,13 +57,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      const response = await loginApi(email, password);
+      const response = await loginApi({
+        username: email,
+        password: password
+      });
       
-      if (response.error) {
-        setError(response.error);
+      if (!response.data) {
+        setError(response.message || '登录失败');
         toast({
           title: "登录失败",
-          description: response.error,
+          description: response.message || '登录失败',
           variant: "destructive",
         });
         setIsLoading(false);
@@ -71,11 +74,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // 保存token
-      if (response.data?.access_token) {
-        saveToken(response.data.access_token);
+      if (response.data.access_token) {
+        const token = response.data.access_token;
+        saveToken(token);
         
         // 获取用户信息
-        const userResponse = await getCurrentUser(response.data.access_token);
+        const userResponse = await getCurrentUser();
         if (userResponse.data) {
           setUser(userResponse.data);
           toast({
@@ -97,7 +101,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
       
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "登录过程中发生错误";
+      const errorMessage = err instanceof Error ? err.message : 
+        typeof err === 'object' && err !== null ? 
+          (err as any).message || JSON.stringify(err) : 
+          "登录过程中发生错误";
       setError(errorMessage);
       toast({
         title: "登录失败",
@@ -119,11 +126,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await registerApi(email, password);
       
-      if (response.error) {
-        setError(response.error);
+      if (!response.data) {
+        setError(response.message || '注册失败');
         toast({
           title: "注册失败",
-          description: response.error,
+          description: response.message || '注册失败',
           variant: "destructive",
         });
         setIsLoading(false);
@@ -161,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       title: "已登出",
       description: "您已成功退出登录",
     });
-    navigate('/login');
+    navigate('/');
   };
 
   const value = {

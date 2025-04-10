@@ -1,10 +1,11 @@
-import { apiRequest, ApiResponse } from './api';
+import { apiRequest } from './api';
 
 // 用户相关接口
 export interface User {
   id: number;
   email: string;
   is_active: boolean;
+  is_superuser: boolean;
 }
 
 // 登录响应
@@ -25,54 +26,38 @@ export interface RegisterRequest {
   password: string;
 }
 
+export interface LoginData {
+  username: string;
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+}
+
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
 /**
  * 用户登录
  * @param email 用户邮箱
  * @param password 密码
  * @returns 包含token的响应
  */
-export async function login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
-  // 创建表单数据 (FastAPI OAuth2PasswordRequestForm 需要表单格式)
-  const formData = new URLSearchParams();
-  formData.append('username', email); // OAuth2 默认使用username字段
-  formData.append('password', password);
-
-  // 直接使用fetch，避免apiRequest中的处理逻辑
-  try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString(),
-    });
-
-    // 解析响应
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      data = await response.text();
+export const login = async (data: LoginData) => {
+  const formData = new FormData();
+  formData.append('username', data.username);
+  formData.append('password', data.password);
+  
+  return apiRequest<Token>('/auth/login', 'POST', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
     }
-
-    if (!response.ok) {
-      return {
-        error: typeof data === 'object' && data.detail ? data.detail : 'API请求失败',
-        status: response.status
-      };
-    }
-
-    return {
-      data,
-      status: response.status
-    };
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : '网络请求失败',
-      status: 0
-    };
-  }
-}
+  }, true);
+};
 
 /**
  * 用户注册
@@ -80,23 +65,18 @@ export async function login(email: string, password: string): Promise<ApiRespons
  * @param password 密码
  * @returns 包含用户信息的响应
  */
-export async function register(email: string, password: string): Promise<ApiResponse<User>> {
-  return apiRequest<User>('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-}
+export const register = async (data: RegisterData) => {
+  return apiRequest<User>('/auth/register', 'POST', data, undefined, true);
+};
 
 /**
  * 获取当前用户信息
  * @param token 访问令牌
  * @returns 包含用户信息的响应
  */
-export async function getCurrentUser(token: string): Promise<ApiResponse<User>> {
-  return apiRequest<User>('/auth/me', {
-    token,
-  });
-}
+export const getCurrentUser = async () => {
+  return apiRequest<User>('/auth/me', 'GET', undefined, undefined, true);
+};
 
 /**
  * 保存令牌到本地存储

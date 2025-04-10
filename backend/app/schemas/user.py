@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
+from app.schemas.token import Token
 
 
 class UserBase(BaseModel):
@@ -33,12 +34,6 @@ class User(UserBase):
 
     class Config:
         orm_mode = True
-
-
-class Token(BaseModel):
-    """Token响应模型"""
-    access_token: str
-    token_type: str
 
 
 class TokenPayload(BaseModel):

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, MessageSquare, Database, Book, FileText } from 'lucide-react'
+import { Home, MessageSquare, Database, Book, FileText, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 
@@ -9,6 +9,10 @@ const navItems = [
   { name: 'Text2SQL', href: '/app/text2sql', icon: Database },
   { name: '知识库', href: '/app/knowledge', icon: Book },
   { name: '文案创作', href: '/app/content', icon: FileText },
+]
+
+const settingsItems = [
+  { name: '模型设置', href: '/app/model-settings', icon: Settings },
 ]
 
 export default function Sidebar() {
@@ -35,6 +39,28 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      
+      <div className="border-t mt-4 pt-4">
+        <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-2 px-2">设置</h2>
+        <nav className="space-y-1">
+          {settingsItems.map((item) => (
+            <NavLink
+              key={item.name}
+              to={item.href}
+              end={item.exact}
+              className={({ isActive }) =>
+                cn(
+                  buttonVariants({ variant: isActive ? 'secondary' : 'ghost' }),
+                  'w-full justify-start'
+                )
+              }
+            >
+              <item.icon className="mr-2 h-4 w-4" />
+              {item.name}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
     </div>
   )
 } 

@@ -6,8 +6,7 @@ from typing import Any
 
 from app.db.deps import get_db
 from app.schemas.user import UserCreate, User, Token
-from app.services.user import get_user_by_email, create_user, verify_password
-from app.services.auth import create_access_token, verify_token
+from app.services import auth_service
 from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -21,17 +20,40 @@ def register(
     """
     用户注册
     """
-    # 检查用户是否已存在
-    if get_user_by_email(db, email=user_in.email):
+    print(f"收到注册请求: {user_in.dict()}")
+    
+    # 验证邮箱格式
+    if not user_in.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="邮箱已被注册"
+            detail="邮箱不能为空"
         )
     
-    # 创建新用户
-    user = create_user(db, user_in)
+    # 验证密码长度
+    if len(user_in.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="密码长度至少需要8个字符"
+        )
     
-    return user
+    # 检查邮箱是否已注册
+    user = auth_service.get_user_by_email(db, email=user_in.email)
+    if user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该邮箱已被注册"
+        )
+    
+    try:
+        new_user = auth_service.create_user(db, user_in)
+        print(f"用户注册成功: {new_user.email}")
+        return new_user
+    except Exception as e:
+        print(f"用户注册失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"注册失败: {str(e)}"
+        )
 
 @router.post("/login", response_model=Token)
 def login(
@@ -39,32 +61,17 @@ def login(
     db: Session = Depends(get_db)
 ) -> Any:
     """
-    用户登录，获取访问令牌
+    用户登录
     """
-    # 查找用户
-    user = get_user_by_email(db, email=form_data.username)
+    user = auth_service.authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="邮箱或密码错误",
+            detail="用户名或密码错误",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # 验证密码
-    if not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="邮箱或密码错误",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # 创建访问令牌
-    access_token = create_access_token(subject=user.email)
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+    access_token = auth_service.create_access_token(data={"sub": user.email})
+    return Token(access_token=access_token, token_type="bearer")
 
 @router.get("/me", response_model=User)
 def read_users_me(
@@ -75,7 +82,7 @@ def read_users_me(
     获取当前登录用户信息
     """
     # 验证令牌
-    token_data = verify_token(token)
+    token_data = auth_service.verify_token(token)
     if not token_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -84,7 +91,7 @@ def read_users_me(
         )
     
     # 获取用户信息
-    user = get_user_by_email(db, email=token_data.sub)
+    user = auth_service.get_user_by_email(db, email=token_data.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

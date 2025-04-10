@@ -20,6 +20,22 @@ export default function Register() {
     
     // 表单验证
     if (!email || !password || !confirmPassword) {
+      toast({
+        title: "表单不完整",
+        description: "请填写所有必填字段",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      toast({
+        title: "邮箱格式错误",
+        description: "请输入有效的邮箱地址",
+        variant: "destructive",
+      })
       return
     }
     

@@ -1,78 +1,195 @@
-// API 基础封装
-// 配置API基础URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { toast } from '@/components/ui/use-toast';
 
-// 请求选项接口
-interface RequestOptions extends RequestInit {
-  token?: string;
-}
+// 基础配置
+const baseConfig = {
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+};
 
-// 响应类型
-export interface ApiResponse<T = any> {
-  data?: T;
-  error?: string;
-  status: number;
-}
+// 创建基础 axios 实例
+const baseInstance = axios.create({
+  baseURL: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1').replace(/\/$/, ''),
+  ...baseConfig,
+});
 
-/**
- * 发送API请求
- * @param endpoint API端点
- * @param options 请求选项
- * @returns Promise<ApiResponse>
- */
-export async function apiRequest<T>(
-  endpoint: string,
-  options: RequestOptions = {}
-): Promise<ApiResponse<T>> {
-  const { token, ...customOptions } = options;
+// 创建 LLM 配置相关的 axios 实例
+const llmConfigInstance = axios.create({
+  baseURL: `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '')}/llm-config`,
+  ...baseConfig,
+});
+
+// 添加调试信息
+console.log("Base API URL:", baseInstance.defaults.baseURL);
+console.log("LLM Config API URL:", llmConfigInstance.defaults.baseURL);
+
+// 请求拦截器
+const requestInterceptor = (config: InternalAxiosRequestConfig) => {
+  console.log('请求配置:', {
+    url: config.url,
+    method: config.method,
+    headers: config.headers,
+    data: config.data
+  });
   
-  // 设置headers
-  const headers = new Headers(customOptions.headers || {});
-  
-  // 只有在没有设置Content-Type的情况下才设置默认值
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-  
-  // 如果有token则添加到headers
+  const token = localStorage.getItem('token');
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    config.headers = config.headers || {};
+    config.headers['Authorization'] = `Bearer ${token}`;
   }
+  return config;
+};
 
-  try {
-    // 发送请求
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...customOptions,
-      headers,
+// 响应拦截器
+const responseInterceptor = (response: AxiosResponse) => {
+  console.log('响应数据:', {
+    status: response.status,
+    headers: response.headers,
+    data: response.data
+  });
+  return response;
+};
+
+const errorInterceptor = (error: any) => {
+  console.error('响应错误详情:', {
+    message: error.message,
+    code: error.code,
+    config: error.config,
+    response: error.response
+  });
+  
+  // 处理错误响应
+  const { response } = error;
+  if (response) {
+    // 根据状态码处理不同错误
+    switch (response.status) {
+      case 401:
+        toast({
+          title: '登录失效',
+          description: '请重新登录',
+          variant: 'destructive',
+        });
+        // 可以在这里处理登出逻辑
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        break;
+      case 403:
+        toast({
+          title: '无权限',
+          description: '您没有权限执行此操作',
+          variant: 'destructive',
+        });
+        break;
+      case 422:
+        toast({
+          title: '请求数据错误',
+          description: response.data?.detail || '请求数据格式不正确',
+          variant: 'destructive',
+        });
+        break;
+      case 500:
+        toast({
+          title: '服务器错误',
+          description: '服务器发生错误，请稍后再试',
+          variant: 'destructive',
+        });
+        break;
+      default:
+        toast({
+          title: '请求失败',
+          description: typeof response.data?.message === 'string' ? 
+            response.data.message : 
+            typeof response.data?.detail === 'string' ? 
+              response.data.detail : 
+              '未知错误',
+          variant: 'destructive',
+        });
+    }
+  } else {
+    // 网络错误
+    toast({
+      title: '网络错误',
+      description: error.message || '网络连接失败，请检查您的网络设置',
+      variant: 'destructive',
     });
-    
-    // 尝试解析为JSON
-    let data;
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
+  }
+  
+  return Promise.reject(error);
+};
+
+// 为两个实例添加拦截器
+baseInstance.interceptors.request.use(requestInterceptor);
+baseInstance.interceptors.response.use(responseInterceptor, errorInterceptor);
+llmConfigInstance.interceptors.request.use(requestInterceptor);
+llmConfigInstance.interceptors.response.use(responseInterceptor, errorInterceptor);
+
+export interface ApiResponse<T> {
+  data: T | null;
+  message?: string;
+  status?: number;
+  success?: boolean;
+}
+
+// 通用请求方法
+export const apiRequest = async <T>(
+  url: string,
+  method: string,
+  data?: any,
+  config?: AxiosRequestConfig,
+  useBaseInstance: boolean = false
+): Promise<ApiResponse<T>> => {
+  const instance = useBaseInstance ? baseInstance : llmConfigInstance;
+  
+  try {
+    const requestConfig: AxiosRequestConfig = {
+      url,
+      method,
+      ...config
+    };
+
+    // 处理 FormData
+    if (data instanceof FormData) {
+      requestConfig.data = data;
     } else {
-      data = await response.text();
+      requestConfig.data = method.toUpperCase() !== 'GET' ? data : undefined;
+      requestConfig.params = method.toUpperCase() === 'GET' ? data : undefined;
     }
     
-    // 处理非2xx响应
-    if (!response.ok) {
+    const response = await instance(requestConfig);
+    
+    // 如果响应状态码是2xx，则认为请求成功
+    if (response.status >= 200 && response.status < 300) {
       return {
-        error: data.detail || 'API请求失败',
-        status: response.status
+        data: response.data,
+        message: response.data?.message,
+        status: response.status,
+        success: true
       };
     }
     
-    // 返回成功响应
     return {
-      data,
-      status: response.status
+      data: null,
+      message: response.data?.detail || '请求失败',
+      status: response.status,
+      success: false
     };
+    
   } catch (error) {
-    // 处理网络错误
+    if (axios.isAxiosError(error) && error.response?.data) {
+      return {
+        data: null,
+        message: error.response.data.detail || '请求失败',
+        status: error.response.status,
+        success: false
+      };
+    }
+    
     return {
-      error: error instanceof Error ? error.message : '网络请求失败',
-      status: 0
+      data: null,
+      message: '请求失败',
+      success: false
     };
   }
-} 
+}; 

@@ -3,6 +3,8 @@ from pydantic import validator, AnyUrl
 from typing import List, Optional
 import os
 from dotenv import load_dotenv
+import secrets
+from urllib.parse import urlparse
 
 load_dotenv()
 
@@ -12,9 +14,13 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # CORS 配置
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",  # 前端开发服务器
+        "http://localhost:8000",  # 后端开发服务器
+        "http://localhost:5173",  # Vite 开发服务器
+        "http://127.0.0.1:5173",  # Vite 开发服务器 (IP 地址)
+        "http://localhost:5174",  # Vite 开发服务器 (备用端口)
+        "http://127.0.0.1:5174",  # Vite 开发服务器 (备用端口 IP 地址)
     ]
     
     # 数据库配置
@@ -53,12 +59,23 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = os.getenv("MINIO_BUCKET_NAME", "agent-platform")
     
     # JWT 配置
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-very-secret-key-please-change")
+    SECRET_KEY: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     
     # OpenAI 配置
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "")
+    
+    # DeepSeek 配置
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    
+    # Ollama 配置
+    OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    
+    # 智能体配置
+    DEFAULT_LLM_PROVIDER: str = os.getenv("DEFAULT_LLM_PROVIDER", "openai")
+    DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL", "default")
     
     class Config:
         case_sensitive = True
