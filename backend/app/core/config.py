@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # 基础配置
     PROJECT_NAME: str = "智能体综合应用平台"
     API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")  # 默认为开发环境
     
     # CORS 配置
     BACKEND_CORS_ORIGINS: List[str] = [

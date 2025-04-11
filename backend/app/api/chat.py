@@ -5,9 +5,9 @@ from typing import List, Optional, Dict, Any
 import json
 import asyncio
 import uuid
+from datetime import datetime
 
-from app.db.deps import get_db
-from app.api.deps import get_current_user
+from app.api import deps
 from app.models.user import User
 from app.models.session import ChatSession
 from app.models.message import ChatMessage
@@ -16,7 +16,8 @@ from app.schemas.chat import (
     Message as MessageSchema,
     MessageCreate,
     ChatSessionCreate,
-    ChatMessage,
+    ChatSessionUpdate,
+    ChatMessage as ChatMessageSchema,
     ChatMessageCreate,
     ChatMessageResponse,
     SessionCreate,
@@ -24,9 +25,10 @@ from app.schemas.chat import (
     ChatRequest,
     ChatResponse
 )
-from app.services import chat as chat_service
+from app.services.chat_service import chat_service, websocket_manager, handle_websocket_message
 from app.services.agent_service import get_agent_service, AgentType
 from app.core.config import settings
+from app.services.llm_config_service import llm_config_service
 
 router = APIRouter(prefix="/chat", tags=["聊天"])
 
@@ -39,68 +41,64 @@ def health_check():
     return {"status": "ok", "message": "聊天服务正常运行"}
 
 
-@router.post("/send", response_model=ChatResponse)
-async def send_message(
+@router.post("/chat", response_model=ChatResponse)
+async def chat(
     chat_request: ChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> ChatResponse:
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
     """
-    发送消息给AI并获取回复
+    与AI进行聊天
     """
-    try:
-        return await chat_service.chat_with_ai(db, current_user.id, chat_request)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"聊天服务发生错误: {str(e)}"
-        )
+    return await chat_service.chat_with_ai(db, current_user.id, chat_request)
 
 
 @router.get("/sessions", response_model=List[SessionSchema])
 def get_sessions(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ) -> List[SessionSchema]:
     """
-    获取当前用户的所有聊天会话
+    获取用户的所有会话
     """
     return chat_service.get_sessions_by_user(db, current_user.id, skip, limit)
 
 
 @router.post("/sessions", response_model=SessionSchema, status_code=status.HTTP_201_CREATED)
-def create_session(
-    session_in: SessionCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+async def create_session(
+    session_in: ChatSessionCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ) -> SessionSchema:
     """
     创建新的聊天会话
     """
-    return chat_service.create_session(db, session_in.title, current_user.id)
+    try:
+        session = await chat_service.create_session(db, session_in.title, current_user.id)
+        return session
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"创建会话失败: {str(e)}"
+        )
 
 
 @router.get("/sessions/{session_id}", response_model=SessionSchema)
 def get_session(
-    session_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    session_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ) -> SessionSchema:
     """
-    获取特定的聊天会话
+    获取特定会话
     """
     session = chat_service.get_session_by_id(db, session_id)
     if not session or session.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="会话不存在或无权访问"
+            detail="会话不存在"
         )
     return session
 
@@ -108,117 +106,113 @@ def get_session(
 @router.put("/sessions/{session_id}", response_model=SessionSchema)
 def update_session(
     session_id: str,
-    session_in: SessionUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    session_in: ChatSessionUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ) -> SessionSchema:
     """
-    更新聊天会话
+    更新会话
     """
     session = chat_service.get_session_by_id(db, session_id)
     if not session or session.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="会话不存在或无权访问"
+            detail="会话不存在"
         )
     return chat_service.update_session(db, session, session_in)
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_session(
-    session_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    session_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ) -> None:
     """
-    删除聊天会话
+    删除会话
     """
     session = chat_service.get_session_by_id(db, session_id)
     if not session or session.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="会话不存在或无权访问"
+            detail="会话不存在"
         )
     chat_service.delete_session(db, session)
 
 
 @router.get("/sessions/{session_id}/messages", response_model=List[MessageSchema])
-def get_messages(
+def get_session_messages(
     session_id: str,
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ) -> List[MessageSchema]:
     """
-    获取会话中的消息
+    获取指定会话的所有消息
     """
-    try:
-        # 验证session_id是否为有效的UUID
-        try:
-            uuid.UUID(session_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="无效的会话ID格式"
-            )
-        
-        session = chat_service.get_session_by_id(db, session_id)
-        if not session or session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="会话不存在或无权访问"
-            )
-        return chat_service.get_messages_by_session(db, session_id, skip, limit)
-    except Exception as e:
+    session = chat_service.get_session_by_id(db, session_id)
+    if not session or session.user_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取消息失败: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在"
         )
+    return chat_service.get_messages_by_session(db, session_id, skip, limit)
 
 
-@router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
-async def send_message(
+@router.post("/sessions/{session_id}/messages", response_model=ChatMessageSchema)
+async def create_message(
     session_id: str,
-    message_in: MessageCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> ChatMessageResponse:
+    message_in: ChatMessageCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
     """
-    在会话中发送消息
+    创建新消息
     """
-    try:
-        # 验证session_id是否为有效的UUID
-        try:
-            uuid.UUID(session_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="无效的会话ID格式"
-            )
-        
-        session = chat_service.get_session_by_id(db, session_id)
-        if not session or session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="会话不存在或无权访问"
-            )
-        
-        # 调用聊天服务发送消息
-        return await chat_service.send_message(db, session_id, message_in, current_user.id)
-        
-    except Exception as e:
+    session = chat_service.get_session_by_id(db, session_id)
+    if not session or session.user_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"发送消息失败: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在"
         )
+    
+    # 创建用户消息
+    user_message = ChatMessage(
+        id=str(uuid.uuid4()),
+        session_id=session_id,
+        content=message_in.content,
+        role="user",
+        created_at=datetime.utcnow()
+    )
+    
+    # 保存用户消息
+    await chat_service.save_message(user_message)
+    
+    # 获取默认 LLM 配置
+    llm_config = llm_config_service.get_default_config(db, current_user.id)
+    if not llm_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="未找到可用的 LLM 配置"
+        )
+    
+    # 发送消息并获取回复
+    response = await chat_service.send_message(
+        session_id=session_id,
+        content=message_in.content,
+        user_id=str(current_user.id),
+        llm_config=llm_config
+    )
+    
+    return response.assistant_message
 
 
 @router.post("/stream", response_class=StreamingResponse)
 async def stream_chat(
     chat_request: ChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ):
     """
     以流式方式与AI聊天
@@ -333,7 +327,7 @@ async def stream_chat(
 
 @router.post("/providers", response_model=Dict[str, Any])
 async def get_available_providers(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(deps.get_current_user)
 ):
     """
     获取可用的LLM提供商和模型
@@ -361,7 +355,7 @@ async def get_available_providers(
 @router.post("/stop", status_code=status.HTTP_200_OK)
 async def stop_generation(
     session_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(deps.get_current_user)
 ):
     """
     停止消息生成 (目前仅为占位API，实际停止功能需要前端处理)
@@ -370,25 +364,32 @@ async def stop_generation(
     return {"success": True, "message": "已发送停止信号"}
 
 
-@router.websocket("/sessions/{session_id}/ws")
+@router.websocket("/ws/{session_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
-    session_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    session_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
 ):
     """
     WebSocket 端点，用于实时聊天
     """
-    session = chat_service.get_session_by_id(db, session_id)
-    if not session or session.user_id != current_user.id:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    await chat_service.websocket_manager.connect(websocket, session_id)
     try:
-        while True:
-            data = await websocket.receive_text()
-            await chat_service.handle_websocket_message(db, websocket, session_id, data, current_user.id)
-    except WebSocketDisconnect:
-        chat_service.websocket_manager.disconnect(websocket, session_id) 
+        # 验证会话
+        session = chat_service.get_session_by_id(db, session_id)
+        if not session or session.user_id != current_user.id:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # 连接 WebSocket
+        await websocket_manager.connect(websocket, session_id)
+        
+        try:
+            while True:
+                data = await websocket.receive_text()
+                await handle_websocket_message(db, websocket, session_id, data, current_user.id)
+        except WebSocketDisconnect:
+            websocket_manager.disconnect(websocket, session_id)
+    except Exception as e:
+        if websocket.client_state.CONNECTED:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR) 

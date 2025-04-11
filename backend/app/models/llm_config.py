@@ -6,6 +6,9 @@ class LLMConfig(Base):
     """
     存储LLM配置信息的数据库模型
     """
+    __tablename__ = "llm_config"
+    __table_args__ = {'mysql_charset': 'utf8mb4'}
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), index=True, nullable=False, unique=True)  # 配置名称
     provider = Column(String(50), nullable=False)  # 提供商，如openai, deepseek, ollama
@@ -16,4 +19,7 @@ class LLMConfig(Base):
     
     # 创建者信息
     user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="llm_configs") 
+    user = relationship("User", back_populates="llm_configs")
+    
+    # 关联的聊天会话
+    chat_sessions = relationship("ChatSession", back_populates="llm_config", cascade="all, delete-orphan") 

@@ -25,16 +25,53 @@ class LLMConfigService:
         """
         获取用户的默认LLM配置
         """
-        config = db.query(LLMConfig).filter(LLMConfig.user_id == user_id, LLMConfig.is_default == True).first()
-        if config:
-            # 确保所有必要的字段都被正确设置
-            config.model = config.model_name
-            config.api_base = config.api_base_url
-            config.api_key = config.api_key
-            config.provider = config.provider
-            config.temperature = 0.7  # 默认温度
-            config.max_tokens = 2000  # 默认最大token数
-        return config
+        try:
+            print(f"获取用户 {user_id} 的默认LLM配置")
+            
+            # 首先尝试获取用户的默认配置
+            config = db.query(LLMConfig).filter(
+                LLMConfig.user_id == user_id,
+                LLMConfig.is_default == True
+            ).first()
+            
+            if config:
+                print(f"找到用户的默认配置: {config.__dict__}")
+                # 确保所有必要的字段都被正确设置
+                config.model = config.model_name
+                config.api_base = config.api_base_url
+                config.api_key = config.api_key
+                config.provider = config.provider
+                config.temperature = 0.7  # 默认温度
+                config.max_tokens = 2000  # 默认最大token数
+                return config
+            
+            # 如果没有默认配置，获取第一个配置
+            config = db.query(LLMConfig).filter(
+                LLMConfig.user_id == user_id
+            ).first()
+            
+            if config:
+                print(f"找到用户的第一个配置: {config.__dict__}")
+                # 设置为默认配置
+                config.is_default = True
+                db.commit()
+                db.refresh(config)
+                
+                # 确保所有必要的字段都被正确设置
+                config.model = config.model_name
+                config.api_base = config.api_base_url
+                config.api_key = config.api_key
+                config.provider = config.provider
+                config.temperature = 0.7  # 默认温度
+                config.max_tokens = 2000  # 默认最大token数
+                return config
+            
+            print(f"用户 {user_id} 没有任何LLM配置")
+            return None
+            
+        except Exception as e:
+            print(f"获取默认配置失败: {str(e)}")
+            return None
 
     def create_config(self, db: Session, config_in: LLMConfigCreate, user_id: int) -> LLMConfig:
         """
