@@ -114,13 +114,28 @@ class LLMConfigService:
         """
         return {
             "providers": {
-                "openai": ["default", "gpt4"],
-                "deepseek": ["default"],
-                "ollama": ["default", "mistral"]
+                "openai": [
+                    "gpt-3.5-turbo",
+                    "gpt-3.5-turbo-16k",
+                    "gpt-4",
+                    "gpt-4-turbo-preview",
+                    "gpt-4-32k"
+                ],
+                "deepseek": [
+                    "deepseek-chat",
+                    "deepseek-coder"
+                ],
+                "ollama": [
+                    "llama2",
+                    "mistral",
+                    "codellama",
+                    "vicuna",
+                    "wizardcoder"
+                ]
             },
             "current": {
                 "provider": "openai",
-                "model": "default"
+                "model": "gpt-3.5-turbo"
             }
         }
 
