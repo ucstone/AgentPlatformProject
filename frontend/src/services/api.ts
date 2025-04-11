@@ -83,9 +83,13 @@ const errorInterceptor = (error: any) => {
         });
         break;
       case 422:
+        const errorDetail = response.data?.detail;
+        const errorMessage = typeof errorDetail === 'string' ? errorDetail : 
+          Array.isArray(errorDetail) ? errorDetail.join(', ') : 
+          '请求数据格式不正确';
         toast({
           title: '请求数据错误',
-          description: response.data?.detail || '请求数据格式不正确',
+          description: errorMessage,
           variant: 'destructive',
         });
         break;

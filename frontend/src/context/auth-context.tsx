@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = getToken();
       if (token) {
         try {
-          const response = await getCurrentUser(token);
+          const response = await getCurrentUser();
           if (response.data) {
             setUser(response.data);
           } else {
@@ -124,13 +124,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      const response = await registerApi(email, password);
+      const response = await registerApi({
+        email,
+        password
+      });
       
       if (!response.data) {
-        setError(response.message || '注册失败');
+        const errorMsg = typeof response.message === 'string' ? response.message : '注册失败';
+        setError(errorMsg);
         toast({
           title: "注册失败",
-          description: response.message || '注册失败',
+          description: errorMsg,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -146,7 +150,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
       
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "注册过程中发生错误";
+      const errorMessage = err instanceof Error ? err.message : 
+        typeof err === 'object' && err !== null ? 
+          (err as any).message || JSON.stringify(err) : 
+          "注册过程中发生错误";
       setError(errorMessage);
       toast({
         title: "注册失败",
