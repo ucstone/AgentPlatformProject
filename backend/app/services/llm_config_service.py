@@ -25,7 +25,16 @@ class LLMConfigService:
         """
         获取用户的默认LLM配置
         """
-        return db.query(LLMConfig).filter(LLMConfig.user_id == user_id, LLMConfig.is_default == True).first()
+        config = db.query(LLMConfig).filter(LLMConfig.user_id == user_id, LLMConfig.is_default == True).first()
+        if config:
+            # 确保所有必要的字段都被正确设置
+            config.model = config.model_name
+            config.api_base = config.api_base_url
+            config.api_key = config.api_key
+            config.provider = config.provider
+            config.temperature = 0.7  # 默认温度
+            config.max_tokens = 2000  # 默认最大token数
+        return config
 
     def create_config(self, db: Session, config_in: LLMConfigCreate, user_id: int) -> LLMConfig:
         """

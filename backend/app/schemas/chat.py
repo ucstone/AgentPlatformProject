@@ -103,10 +103,10 @@ class ChatMessage(ChatMessageBase):
         from_attributes = True
 
 
-class ChatMessageResponse(ChatMessageBase):
-    id: str
-    session_id: str
-    created_at: datetime
+class ChatMessageResponse(BaseModel):
+    """聊天消息响应模型"""
+    user_message: ChatMessage
+    assistant_message: ChatMessage
 
     class Config:
         from_attributes = True

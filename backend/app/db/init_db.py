@@ -4,6 +4,12 @@ from app.db.session import engine, SessionLocal
 from app.models.user import User
 from app.core.security import get_password_hash
 from app.models.llm_config import LLMConfig
+from app.core.config import settings
+from app.models.session import ChatSession
+from app.models.message import ChatMessage
+from app.services.llm_config_service import llm_config_service
+from sqlalchemy import inspect, text
+from datetime import datetime
 
 # 确保所有继承自 Base 的模型都被导入，SQLAlchemy 才能找到它们。
 # 虽然这里没有直接使用 User，但导入 base 会间接导入它。
@@ -11,21 +17,46 @@ from app.models.llm_config import LLMConfig
 # 导入聊天相关服务
 from app.services.chat import create_session, create_message
 
+def check_and_add_missing_columns(db: Session) -> None:
+    """
+    检查并添加缺失的列
+    """
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    
+    if "users" in tables:
+        columns = [col['name'] for col in inspector.get_columns("users")]
+        
+        # 检查并添加 created_at 列
+        if "created_at" not in columns:
+            print("添加 created_at 列到 users 表...")
+            db.execute(text("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+        
+        # 检查并添加 updated_at 列
+        if "updated_at" not in columns:
+            print("添加 updated_at 列到 users 表...")
+            db.execute(text("ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
+        
+        db.commit()
+        print("列检查完成。")
+
 def init_db(db: Session) -> None:
     """
     初始化数据库，创建所有表
     """
-    # 在这里创建所有表
-    # 在生产环境中，你可能更愿意使用 Alembic 进行数据库迁移
-    print("正在尝试创建数据库表...")
+    # 创建所有表
+    print("正在创建数据库表...")
     try:
         base.Base.metadata.create_all(bind=engine)
-        print("数据库表创建（或已存在）成功。")
+        print("数据库表创建成功。")
     except Exception as e:
         print(f"创建数据库表时出错: {e}")
         raise
 
-    # 检查是否存在 LLM 配置
+    # 检查并添加缺失的列
+    check_and_add_missing_columns(db)
+
+    # 检查 LLM 配置
     check_llm_config(db)
 
 def check_llm_config(db: Session) -> None:

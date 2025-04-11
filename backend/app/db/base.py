@@ -3,5 +3,6 @@
 from app.db.base_class import Base # 导入 Base
 # 导入所有的模型
 from app.models.user import User  # noqa
-from app.models.chat import Session, Message  # noqa
+from app.models.session import ChatSession  # noqa
+from app.models.message import ChatMessage  # noqa
 from app.models.llm_config import LLMConfig  # noqa 

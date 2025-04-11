@@ -9,7 +9,8 @@ import uuid
 from app.db.deps import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.chat import Session as ChatSession, Message
+from app.models.session import ChatSession
+from app.models.message import ChatMessage
 from app.schemas.chat import (
     Session as SessionSchema,
     Message as MessageSchema,
