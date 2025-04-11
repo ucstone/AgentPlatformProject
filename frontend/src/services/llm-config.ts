@@ -68,6 +68,10 @@ export interface LLMConfigUpdateModel {
 
 export interface ProvidersData {
   providers: Record<string, string[]>;
+  current: {
+    provider: string;
+    model: string;
+  };
 }
 
 /**

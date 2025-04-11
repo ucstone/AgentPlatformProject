@@ -120,9 +120,32 @@ async def send_message(db: Session, session_id: str, message_in: ChatMessageCrea
     if not llm_config:
         raise ValueError("未找到可用的 LLM 配置")
     
-    # TODO: 调用 LLM 服务获取回复
-    # 这里暂时返回一个模拟回复
-    assistant_message = create_message(db, session_id, "这是一个模拟回复", "assistant")
+    # 获取会话历史消息
+    messages = get_messages_by_session(db, session_id)
+    
+    # 准备消息历史
+    message_history = [
+        {"role": msg.role, "content": msg.content}
+        for msg in messages[-10:] # 最多获取最近10条消息
+    ]
+    
+    # 获取智能体服务
+    agent_service = get_agent_service(
+        agent_type="customer_service",
+        llm_provider=llm_config.provider,
+        model_key=llm_config.model_name
+    )
+    
+    # 调用智能体服务获取回复
+    assistant_response = ""
+    async for chunk in agent_service.chat_stream(
+        messages=message_history,
+        user_id=user_id
+    ):
+        assistant_response += chunk
+    
+    # 创建助手消息
+    assistant_message = create_message(db, session_id, assistant_response, "assistant")
     
     return ChatMessageResponse(
         user_message=user_message,
@@ -170,7 +193,11 @@ async def chat_with_ai(db: Session, user_id: int, chat_request: ChatRequest) -> 
         if not session_id:
             # 使用消息的前20个字符作为会话标题
             title = user_message[:20] + "..." if len(user_message) > 20 else user_message
-            db_session = create_session(db, title=title, user_id=user_id)
+            db_session = await create_session(
+                db,
+                session_in=ChatSessionCreate(title=title),
+                user_id=user_id
+            )
             session_id = db_session.id
         else:
             # 获取现有会话
@@ -198,13 +225,26 @@ async def chat_with_ai(db: Session, user_id: int, chat_request: ChatRequest) -> 
         if not llm_config:
             raise ValueError("未找到可用的 LLM 配置")
         
-        # TODO: 调用 LLM 服务获取回复
-        # 这里暂时返回一个模拟回复
-        assistant_message = "这是一个模拟回复"
-        assistant_message_obj = create_message(db, session_id=session_id, content=assistant_message, role="assistant")
+        # 获取智能体服务
+        agent_service = get_agent_service(
+            agent_type="customer_service",
+            llm_provider=llm_config.provider,
+            model_key=llm_config.model_name
+        )
+        
+        # 调用智能体服务获取回复
+        assistant_response = ""
+        async for chunk in agent_service.chat_stream(
+            messages=message_history,
+            user_id=user_id
+        ):
+            assistant_response += chunk
+        
+        # 创建助手消息
+        assistant_message_obj = create_message(db, session_id=session_id, content=assistant_response, role="assistant")
         
         return ChatResponse(
-            message=assistant_message,
+            message=assistant_response,
             session_id=str(session_id)
         )
         

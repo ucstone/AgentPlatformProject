@@ -6,7 +6,7 @@ from app.db.deps import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.llm_config import LLMConfig, LLMConfigCreate, LLMConfigUpdate
-from app.services import llm_config_service
+from app.services.llm_config_service import llm_config_service
 
 router = APIRouter(tags=["模型配置"])
 

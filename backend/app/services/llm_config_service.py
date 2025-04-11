@@ -14,7 +14,12 @@ class LLMConfigService:
         """
         获取用户的所有LLM配置
         """
-        return db.query(LLMConfig).filter(LLMConfig.user_id == user_id).offset(skip).limit(limit).all()
+        print(f"获取用户 {user_id} 的配置，skip={skip}, limit={limit}")
+        configs = db.query(LLMConfig).filter(LLMConfig.user_id == user_id).offset(skip).limit(limit).all()
+        print(f"找到 {len(configs)} 条配置")
+        for config in configs:
+            print(f"配置: id={config.id}, name={config.name}, provider={config.provider}, model_name={config.model_name}")
+        return configs
 
     def get_default_config(self, db: Session, user_id: int) -> Optional[LLMConfig]:
         """
@@ -100,16 +105,21 @@ class LLMConfigService:
         """
         return {
             "providers": {
-                "openai": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
-                "deepseek": ["deepseek-chat", "deepseek-coder"],
-                "ollama": ["llama3", "mistral", "codellama"],
-                "anthropic": ["claude-2", "claude-3-opus", "claude-3-sonnet"],
-                "gemini": ["gemini-pro", "gemini-ultra"]
+                "openai": ["default", "gpt4"],
+                "deepseek": ["default"],
+                "ollama": ["default", "mistral"]
+            },
+            "current": {
+                "provider": "openai",
+                "model": "default"
             }
         }
 
 # 创建LLMConfigService的实例
 llm_config_service = LLMConfigService()
+
+# 导出服务实例和系统提示
+__all__ = ["llm_config_service", "CUSTOMER_SERVICE_SYSTEM_PROMPT"]
 
 CUSTOMER_SERVICE_SYSTEM_PROMPT = """你是一个专业的智能客服助手，需要：
 1. 用礼貌、专业的口吻回答用户问题

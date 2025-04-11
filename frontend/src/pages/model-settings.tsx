@@ -65,8 +65,11 @@ export default function ModelSettings() {
       console.log("配置响应:", configsRes);
       
       if (configsRes.data && Array.isArray(configsRes.data)) {
+        console.log("配置数据:", configsRes.data);
+        console.log("配置数量:", configsRes.data.length);
         setConfigs(configsRes.data);
       } else {
+        console.error("配置数据结构不正确:", configsRes);
         setConfigs([]);
       }
     } catch (error) {

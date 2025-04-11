@@ -88,7 +88,7 @@ llmConfigInstance.interceptors.response.use(responseInterceptor, errorIntercepto
 // API 响应类型
 export interface ApiResponse<T = any> {
   success: boolean;
-  data: T;
+  data: T | null;
   message?: string;
   error?: string;
 }

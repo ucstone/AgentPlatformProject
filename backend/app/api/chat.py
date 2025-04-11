@@ -176,13 +176,13 @@ def get_messages(
         )
 
 
-@router.post("/sessions/{session_id}/messages", response_model=MessageSchema)
-def send_message(
+@router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
+async def send_message(
     session_id: str,
     message_in: MessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-) -> MessageSchema:
+) -> ChatMessageResponse:
     """
     在会话中发送消息
     """
@@ -202,7 +202,10 @@ def send_message(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="会话不存在或无权访问"
             )
-        return chat_service.create_message(db, session_id, message_in.content, "user")
+        
+        # 调用聊天服务发送消息
+        return await chat_service.send_message(db, session_id, message_in, current_user.id)
+        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
