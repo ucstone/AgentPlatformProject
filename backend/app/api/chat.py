@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 import json
 import asyncio
+import uuid
 
 from app.db.deps import get_db
 from app.api.deps import get_current_user
@@ -142,7 +143,7 @@ def delete_session(
 
 @router.get("/sessions/{session_id}/messages", response_model=List[MessageSchema])
 def get_messages(
-    session_id: int,
+    session_id: str,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -151,18 +152,33 @@ def get_messages(
     """
     获取会话中的消息
     """
-    session = chat_service.get_session_by_id(db, session_id)
-    if not session or session.user_id != current_user.id:
+    try:
+        # 验证session_id是否为有效的UUID
+        try:
+            uuid.UUID(session_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="无效的会话ID格式"
+            )
+        
+        session = chat_service.get_session_by_id(db, session_id)
+        if not session or session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="会话不存在或无权访问"
+            )
+        return chat_service.get_messages_by_session(db, session_id, skip, limit)
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="会话不存在或无权访问"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取消息失败: {str(e)}"
         )
-    return chat_service.get_messages_by_session(db, session_id, skip, limit)
 
 
 @router.post("/sessions/{session_id}/messages", response_model=MessageSchema)
 def send_message(
-    session_id: int,
+    session_id: str,
     message_in: MessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -170,13 +186,28 @@ def send_message(
     """
     在会话中发送消息
     """
-    session = chat_service.get_session_by_id(db, session_id)
-    if not session or session.user_id != current_user.id:
+    try:
+        # 验证session_id是否为有效的UUID
+        try:
+            uuid.UUID(session_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="无效的会话ID格式"
+            )
+        
+        session = chat_service.get_session_by_id(db, session_id)
+        if not session or session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="会话不存在或无权访问"
+            )
+        return chat_service.create_message(db, session_id, message_in.content, "user")
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="会话不存在或无权访问"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"发送消息失败: {str(e)}"
         )
-    return chat_service.create_message(db, session_id, message_in.content, "user")
 
 
 @router.post("/stream", response_class=StreamingResponse)
@@ -246,7 +277,10 @@ async def stream_chat(
                 )
                 
                 # 流式生成回复
-                async for chunk in agent_service.chat_stream(message_history):
+                async for chunk in agent_service.chat_stream(
+                    message_history,
+                    user_id=current_user.id  # 添加user_id参数
+                ):
                     full_response += chunk
                     yield f"data: {json.dumps({'chunk': chunk})}\n\n"
                     await asyncio.sleep(0.01)  # 添加小延迟确保前端接收流畅

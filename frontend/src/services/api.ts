@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import { toast } from '@/components/ui/use-toast';
 
 // 基础配置
@@ -44,82 +44,38 @@ const requestInterceptor = (config: InternalAxiosRequestConfig) => {
 
 // 响应拦截器
 const responseInterceptor = (response: AxiosResponse) => {
-  console.log('响应数据:', {
-    status: response.status,
-    headers: response.headers,
-    data: response.data
-  });
+  const { data } = response;
+  response.data = {
+    success: true,
+    data: data.data || data,
+    message: data.message
+  };
   return response;
 };
 
-const errorInterceptor = (error: any) => {
-  console.error('响应错误详情:', {
-    message: error.message,
-    code: error.code,
-    config: error.config,
-    response: error.response
-  });
-  
-  // 处理错误响应
+// 错误拦截器
+const errorInterceptor = (error: AxiosError) => {
   const { response } = error;
   if (response) {
-    // 根据状态码处理不同错误
-    switch (response.status) {
-      case 401:
-        toast({
-          title: '登录失效',
-          description: '请重新登录',
-          variant: 'destructive',
-        });
-        // 可以在这里处理登出逻辑
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-        break;
-      case 403:
-        toast({
-          title: '无权限',
-          description: '您没有权限执行此操作',
-          variant: 'destructive',
-        });
-        break;
-      case 422:
-        const errorDetail = response.data?.detail;
-        const errorMessage = typeof errorDetail === 'string' ? errorDetail : 
-          Array.isArray(errorDetail) ? errorDetail.join(', ') : 
-          '请求数据格式不正确';
-        toast({
-          title: '请求数据错误',
-          description: errorMessage,
-          variant: 'destructive',
-        });
-        break;
-      case 500:
-        toast({
-          title: '服务器错误',
-          description: '服务器发生错误，请稍后再试',
-          variant: 'destructive',
-        });
-        break;
-      default:
-        toast({
-          title: '请求失败',
-          description: typeof response.data?.message === 'string' ? 
-            response.data.message : 
-            typeof response.data?.detail === 'string' ? 
-              response.data.detail : 
-              '未知错误',
-          variant: 'destructive',
-        });
-    }
+    const { data } = response as { data: any };
+    response.data = {
+      success: false,
+      error: data.message || '请求失败',
+      message: data.message
+    };
   } else {
-    // 网络错误
-    toast({
-      title: '网络错误',
-      description: error.message || '网络连接失败，请检查您的网络设置',
-      variant: 'destructive',
-    });
+    error.response = {
+      data: {
+        success: false,
+        error: '网络错误',
+        message: '网络错误'
+      },
+      status: 500,
+      statusText: 'Network Error',
+      headers: {},
+      config: error.config
+    } as AxiosResponse;
   }
-  
   return Promise.reject(error);
 };
 
@@ -129,11 +85,12 @@ baseInstance.interceptors.response.use(responseInterceptor, errorInterceptor);
 llmConfigInstance.interceptors.request.use(requestInterceptor);
 llmConfigInstance.interceptors.response.use(responseInterceptor, errorInterceptor);
 
-export interface ApiResponse<T> {
-  data: T | null;
+// API 响应类型
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data: T;
   message?: string;
-  status?: number;
-  success?: boolean;
+  error?: string;
 }
 
 // 通用请求方法
@@ -166,34 +123,31 @@ export const apiRequest = async <T>(
     // 如果响应状态码是2xx，则认为请求成功
     if (response.status >= 200 && response.status < 300) {
       return {
-        data: response.data,
-        message: response.data?.message,
-        status: response.status,
-        success: true
+        success: true,
+        data: response.data.data,
+        message: response.data.message
       };
     }
     
     return {
-      data: null,
-      message: response.data?.detail || '请求失败',
-      status: response.status,
-      success: false
+      success: false,
+      data: undefined as T,
+      message: response.data?.detail || '请求失败'
     };
     
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.data) {
       return {
-        data: null,
-        message: error.response.data.detail || '请求失败',
-        status: error.response.status,
-        success: false
+        success: false,
+        data: undefined as T,
+        message: error.response.data.detail || '请求失败'
       };
     }
     
     return {
-      data: null,
-      message: '请求失败',
-      success: false
+      success: false,
+      data: undefined as T,
+      message: '请求失败'
     };
   }
 }; 

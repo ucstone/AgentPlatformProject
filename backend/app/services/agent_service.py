@@ -2,8 +2,12 @@ from typing import List, Dict, Any, AsyncGenerator, Optional
 import json
 import asyncio
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.services.llm_service import LLMService, LLMMessage, LLMProvider, get_llm_service
+from app.services.llm_config_service import llm_config_service
+from app.core.logging import logger
+from app.db.session import get_db
 
 
 # 智能体类型枚举
@@ -59,26 +63,47 @@ class AgentService:
         except Exception as e:
             raise Exception(f"初始化智能体失败: {str(e)}")
     
-    async def chat_stream(self, 
-                         messages: List[Dict[str, str]],
-                         user_id: Optional[int] = None) -> AsyncGenerator[str, None]:
-        """流式聊天接口"""
+    async def chat_stream(
+        self,
+        messages: List[Dict[str, str]],
+        system_message: str = CUSTOMER_SERVICE_SYSTEM_PROMPT,
+        user_id: Optional[int] = None
+    ) -> AsyncGenerator[str, None]:
+        """以流式方式与AI对话"""
         try:
             # 转换消息格式
             llm_messages = [
-                LLMMessage(role=msg["role"], content=msg["content"])
-                for msg in messages
+                LLMMessage(role=m["role"], content=m["content"])
+                for m in messages
             ]
+            
+            # 获取用户的默认LLM配置
+            if user_id:
+                try:
+                    db = next(get_db())
+                    logger.info(f"正在获取用户 {user_id} 的默认LLM配置")
+                    config = llm_config_service.get_default_config(db, user_id)
+                    if config:
+                        logger.info(f"找到默认配置: {config.provider} - {config.model_name}")
+                        self.llm_service = LLMService(config)
+                    else:
+                        logger.warning(f"用户 {user_id} 没有默认LLM配置")
+                except Exception as e:
+                    logger.error(f"获取默认配置时出错: {str(e)}")
+                    yield f"获取LLM配置失败: {str(e)}"
+                    return
             
             # 使用LLM服务生成回复
             async for chunk in self.llm_service.generate_stream(
-                llm_messages,
-                system_message=self.system_message
+                messages=llm_messages,
+                system_message=system_message,
+                user_id=user_id
             ):
                 yield chunk
                 
         except Exception as e:
-            yield f"抱歉，智能助手遇到了问题: {str(e)}"
+            logger.error(f"聊天流生成错误: {str(e)}")
+            yield f"错误: {str(e)}"
     
     async def ask(self, query: str, history: List[Dict[str, str]]) -> str:
         """非流式聊天，返回完整回复"""

@@ -2,28 +2,30 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from fastapi import WebSocket
 import json
+from datetime import datetime
 
 from app.models.chat import Session as ChatSession, Message
 from app.schemas.chat import ChatSessionCreate, ChatMessageCreate, ChatMessageResponse, ChatRequest, ChatResponse
-from app.services.llm_config_service import get_default_config
+from app.services.agent_service import get_agent_service
+from app.services.llm_config_service import llm_config_service
 
 class WebSocketManager:
     def __init__(self):
-        self.active_connections: Dict[int, List[WebSocket]] = {}
+        self.active_connections: Dict[str, List[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, session_id: int):
+    async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
         if session_id not in self.active_connections:
             self.active_connections[session_id] = []
         self.active_connections[session_id].append(websocket)
 
-    def disconnect(self, websocket: WebSocket, session_id: int):
+    def disconnect(self, websocket: WebSocket, session_id: str):
         if session_id in self.active_connections:
             self.active_connections[session_id].remove(websocket)
             if not self.active_connections[session_id]:
                 del self.active_connections[session_id]
 
-    async def broadcast(self, session_id: int, message: str):
+    async def broadcast(self, session_id: str, message: str):
         if session_id in self.active_connections:
             for connection in self.active_connections[session_id]:
                 await connection.send_text(message)
@@ -40,19 +42,26 @@ def get_sessions_by_user(db: Session, user_id: int, skip: int = 0, limit: int = 
         ChatSession.updated_at.desc()
     ).offset(skip).limit(limit).all()
 
-def get_session_by_id(db: Session, session_id: int) -> Optional[ChatSession]:
+def get_session_by_id(db: Session, session_id: str) -> Optional[ChatSession]:
     """
     获取特定会话
     """
     return db.query(ChatSession).filter(ChatSession.id == session_id).first()
 
-def create_session(db: Session, title: str, user_id: int) -> ChatSession:
-    """
-    创建新会话
-    """
+async def create_session(
+    db: Session,
+    session_in: ChatSessionCreate,
+    user_id: int
+) -> ChatSession:
+    """创建新的聊天会话"""
+    # 获取用户的默认LLM配置
+    default_config = llm_config_service.get_default_config(db, user_id)
+    
+    # 创建会话记录
     db_session = ChatSession(
-        title=title,
-        user_id=user_id
+        title=session_in.title,
+        user_id=user_id,
+        llm_config_id=default_config.id if default_config else None
     )
     db.add(db_session)
     db.commit()
@@ -75,7 +84,7 @@ def delete_session(db: Session, session: ChatSession) -> None:
     db.delete(session)
     db.commit()
 
-def get_messages_by_session(db: Session, session_id: int, skip: int = 0, limit: int = 100) -> List[Message]:
+def get_messages_by_session(db: Session, session_id: str, skip: int = 0, limit: int = 100) -> List[Message]:
     """
     获取会话的所有消息
     """
@@ -85,7 +94,7 @@ def get_messages_by_session(db: Session, session_id: int, skip: int = 0, limit: 
         Message.created_at.asc()
     ).offset(skip).limit(limit).all()
 
-def create_message(db: Session, session_id: int, content: str, role: str) -> Message:
+def create_message(db: Session, session_id: str, content: str, role: str) -> Message:
     """
     创建新消息
     """
@@ -99,7 +108,7 @@ def create_message(db: Session, session_id: int, content: str, role: str) -> Mes
     db.refresh(db_message)
     return db_message
 
-async def send_message(db: Session, session_id: int, message_in: ChatMessageCreate, user_id: int) -> ChatMessageResponse:
+async def send_message(db: Session, session_id: str, message_in: ChatMessageCreate, user_id: int) -> ChatMessageResponse:
     """
     发送消息并获取回复
     """
@@ -107,7 +116,7 @@ async def send_message(db: Session, session_id: int, message_in: ChatMessageCrea
     user_message = create_message(db, session_id, message_in.content, "user")
     
     # 获取默认 LLM 配置
-    llm_config = get_default_config(db, user_id)
+    llm_config = llm_config_service.get_default_config(db, user_id)
     if not llm_config:
         raise ValueError("未找到可用的 LLM 配置")
     
@@ -120,7 +129,7 @@ async def send_message(db: Session, session_id: int, message_in: ChatMessageCrea
         assistant_message=assistant_message
     )
 
-async def handle_websocket_message(db: Session, websocket: WebSocket, session_id: int, data: str, user_id: int) -> None:
+async def handle_websocket_message(db: Session, websocket: WebSocket, session_id: str, data: str, user_id: int) -> None:
     """
     处理 WebSocket 消息
     """
@@ -185,7 +194,7 @@ async def chat_with_ai(db: Session, user_id: int, chat_request: ChatRequest) -> 
         ]
         
         # 获取默认 LLM 配置
-        llm_config = get_default_config(db, user_id)
+        llm_config = llm_config_service.get_default_config(db, user_id)
         if not llm_config:
             raise ValueError("未找到可用的 LLM 配置")
         

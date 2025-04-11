@@ -91,12 +91,12 @@ class ChatMessageBase(BaseModel):
 
 
 class ChatMessageCreate(ChatMessageBase):
-    session_id: int
+    session_id: str
 
 
 class ChatMessage(ChatMessageBase):
-    id: int
-    session_id: int
+    id: str
+    session_id: str
     created_at: datetime
 
     class Config:
@@ -104,8 +104,8 @@ class ChatMessage(ChatMessageBase):
 
 
 class ChatMessageResponse(ChatMessageBase):
-    id: int
-    session_id: int
+    id: str
+    session_id: str
     created_at: datetime
 
     class Config:

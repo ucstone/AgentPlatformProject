@@ -37,23 +37,27 @@ const ChatPage: React.FC = () => {
       setSessionsLoading(true);
       const response = await getSessions();
       
-      // 确保response.data是数组
-      const sessionsList = response.success && Array.isArray(response.data) 
-        ? response.data 
-        : [];
+      if (!response.success) {
+        throw new Error(response.message || '获取会话列表失败');
+      }
       
+      // 确保response.data是数组
+      const sessionsList = Array.isArray(response.data) ? response.data : [];
       setSessions(sessionsList);
       
       // 如果没有指定会话ID，且有会话，则导航到第一个会话
       if (!sessionId && sessionsList.length > 0) {
         navigate(`/app/chat/${sessionsList[0].id}`);
+      } else if (!sessionId && sessionsList.length === 0) {
+        // 如果没有会话，创建一个新会话
+        await handleCreateSession();
       }
     } catch (error) {
       console.error('加载会话失败:', error);
-      setSessions([]); // 确保设置为空数组而不是undefined
+      setSessions([]);
       toast({
         title: '加载会话失败',
-        description: '无法获取会话列表，请稍后重试',
+        description: error instanceof Error ? error.message : '无法获取会话列表，请稍后重试',
         variant: 'destructive',
       });
     } finally {
@@ -63,24 +67,28 @@ const ChatPage: React.FC = () => {
 
   // 加载会话消息
   const loadMessages = async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
     
     try {
       setLoading(true);
       const response = await getMessages(sessionId);
       
+      if (!response.success) {
+        throw new Error(response.message || '获取消息失败');
+      }
+      
       // 确保response.data是数组
-      const messagesList = response.success && Array.isArray(response.data)
-        ? response.data
-        : [];
-        
+      const messagesList = Array.isArray(response.data) ? response.data : [];
       setMessages(messagesList);
     } catch (error) {
       console.error('加载消息失败:', error);
-      setMessages([]); // 确保设置为空数组而不是undefined
+      setMessages([]);
       toast({
         title: '加载消息失败',
-        description: '无法获取会话消息，请稍后重试',
+        description: error instanceof Error ? error.message : '无法获取会话消息，请稍后重试',
         variant: 'destructive',
       });
     } finally {
@@ -91,19 +99,29 @@ const ChatPage: React.FC = () => {
   // 创建新会话
   const handleCreateSession = async () => {
     try {
-      const newSession = await createSession('新会话');
-      await loadSessions();
-      navigate(`/app/chat/${newSession.id}`);
-      toast({
-        title: '已创建新会话',
-        description: '您可以开始新的对话了',
-      });
+      // 生成有意义的会话名称，包含时间戳
+      const now = new Date();
+      const title = `新会话 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      const response = await createSession(title);
+      if (response.success) {
+        const newSession = response.data;
+        setSessions(prev => [...prev, newSession]);
+        navigate(`/app/chat/${newSession.id}`); // 导航到新创建的会话
+        setMessages([]);
+        toast({
+          title: "创建成功",
+          description: "新会话已创建",
+        });
+      } else {
+        throw new Error(response.message || '创建会话失败');
+      }
     } catch (error) {
       console.error('创建会话失败:', error);
       toast({
-        title: '创建会话失败',
-        description: '无法创建新会话，请稍后重试',
-        variant: 'destructive',
+        title: "创建失败",
+        description: error instanceof Error ? error.message : "创建会话失败",
+        variant: "destructive",
       });
     }
   };

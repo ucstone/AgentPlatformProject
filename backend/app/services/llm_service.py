@@ -5,13 +5,9 @@ import httpx
 import os
 from enum import Enum
 from pydantic import BaseModel
-import logging
 
 from app.core.config import settings
-
-# 设置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("llm_service")
+from app.core.logging import logger
 
 class LLMProvider(str, Enum):
     OPENAI = "openai"
@@ -131,7 +127,8 @@ class LLMService:
     async def generate_stream(
         self, 
         messages: List[LLMMessage], 
-        system_message: str = DEFAULT_SYSTEM_MESSAGE
+        system_message: str = DEFAULT_SYSTEM_MESSAGE,
+        user_id: Optional[int] = None
     ) -> AsyncGenerator[str, None]:
         """以流式方式生成回复"""
         # 如果是模拟模式，返回模拟响应
@@ -188,30 +185,17 @@ class LLMService:
                     json=request_data,
                     timeout=60.0
                 ) as response:
-                    if response.status_code != 200:
-                        error_text = await response.aread()
-                        error_msg = f"Ollama API错误 ({response.status_code}): {error_text.decode('utf-8')}"
-                        logger.error(error_msg)
-                        yield error_msg
-                        # 回退到模拟模式
-                        async for chunk in self._mock_response(messages):
-                            yield chunk
-                        return
-                        
                     async for line in response.aiter_lines():
-                        if not line.strip():
-                            continue
-                        try:
-                            data = json.loads(line)
-                            if "message" in data and "content" in data["message"]:
-                                content = data["message"]["content"]
-                                if content:
-                                    yield content
-                        except json.JSONDecodeError:
-                            continue
+                        if line:
+                            try:
+                                chunk = json.loads(line)
+                                if chunk.get("message", {}).get("content"):
+                                    yield chunk["message"]["content"]
+                            except json.JSONDecodeError:
+                                continue
             except Exception as e:
-                logger.error(f"Ollama错误: {str(e)}")
-                yield f"Ollama错误: {str(e)}"
+                logger.error(f"Ollama生成错误: {str(e)}")
+                yield f"错误: {str(e)}"
                 # 回退到模拟模式
                 async for chunk in self._mock_response(messages):
                     yield chunk

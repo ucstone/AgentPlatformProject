@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiRequest, ApiResponse } from './api';
 
 export interface Message {
   id: string;
@@ -15,12 +15,6 @@ export interface Session {
   updated_at?: string;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
 export interface StreamChunk {
   chunk?: string;
   session_id?: string;
@@ -30,55 +24,40 @@ export interface StreamChunk {
 
 // 获取会话列表
 export const getSessions = async (): Promise<ApiResponse<Session[]>> => {
-  return await apiRequest<Session[]>('/chat/sessions', 'GET');
+  return await apiRequest<Session[]>('/chat/sessions', 'GET', undefined, undefined, true);
 };
 
 // 创建新会话
 export const createSession = async (title: string): Promise<ApiResponse<Session>> => {
-  return await apiRequest<Session>('/chat/sessions', 'POST', { title });
+  return await apiRequest<Session>('/chat/sessions', 'POST', { title }, undefined, true);
 };
 
 // 更新会话
 export const updateSession = async (id: string, title: string): Promise<ApiResponse<Session>> => {
-  return await apiRequest<Session>(`/chat/sessions/${id}`, 'PUT', { title });
+  return await apiRequest<Session>(`/chat/sessions/${id}`, 'PUT', { title }, undefined, true);
 };
 
 // 删除会话
 export const deleteSession = async (id: string): Promise<ApiResponse<null>> => {
-  return await apiRequest<null>(`/chat/sessions/${id}`, 'DELETE');
+  return await apiRequest<null>(`/chat/sessions/${id}`, 'DELETE', undefined, undefined, true);
 };
 
 // 获取会话消息
 export const getMessages = async (sessionId: string): Promise<ApiResponse<Message[]>> => {
-  try {
-    console.log("正在获取消息，会话ID:", sessionId);
-    console.log("API URL:", `/chat/sessions/${sessionId}/messages`);
-    
-    const token = localStorage.getItem('token');
-    console.log("Token是否存在:", !!token);
-    
-    const response = await apiRequest<Message[]>(`/chat/sessions/${sessionId}/messages`, 'GET');
-    
-    console.log("获取消息响应:", response);
-    return response;
-  } catch (error) {
-    console.error("获取消息时发生错误:", error);
+  if (!sessionId) {
     return {
       success: false,
       data: [],
-      message: error instanceof Error ? error.message : '获取消息失败'
+      message: '会话ID不能为空'
     };
   }
-};
-
-// 获取单条消息
-export const getMessage = async (sessionId: string, messageId: string): Promise<ApiResponse<Message>> => {
-  return await apiRequest<Message>(`/chat/sessions/${sessionId}/messages/${messageId}`, 'GET');
+  
+  return await apiRequest<Message[]>(`/chat/sessions/${sessionId}/messages`, 'GET', undefined, undefined, true);
 };
 
 // 发送消息
-export const sendMessage = async (sessionId: string, content: string): Promise<ApiResponse<any>> => {
-  return await apiRequest<any>('/chat/send', 'POST', { message: content, session_id: sessionId });
+export const sendMessage = async (sessionId: string, content: string): Promise<ApiResponse<Message>> => {
+  return await apiRequest<Message>(`/chat/sessions/${sessionId}/messages`, 'POST', { content }, undefined, true);
 };
 
 // 以流式方式发送消息
@@ -198,7 +177,7 @@ export const sendMessageStream = async (
         }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         console.warn('流式请求被中止');
         onError(new Error('请求超时'));
       } else {
@@ -216,15 +195,10 @@ export const sendMessageStream = async (
 
 // 获取可用的模型提供商
 export const getAvailableProviders = async (): Promise<ApiResponse<any>> => {
-  return await apiRequest<any>('/chat/providers', 'POST');
+  return await apiRequest<any>('/llm-config/providers', 'GET');
 };
 
 // 停止消息生成
 export const stopMessageGeneration = async (sessionId: string): Promise<ApiResponse<any>> => {
-  return await apiRequest<any>('/chat/stop', 'POST', { session_id: sessionId });
-};
-
-// 导出会话
-export const exportSession = async (sessionId: string, format: 'json' | 'markdown' | 'txt' = 'json'): Promise<ApiResponse<any>> => {
-  return await apiRequest<any>(`/chat/sessions/${sessionId}/export?format=${format}`, 'GET');
+  return await apiRequest<any>('/chat/stop', 'POST', { session_id: sessionId }, undefined, true);
 };
