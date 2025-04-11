@@ -44,23 +44,16 @@ def check_and_add_missing_columns(db: Session) -> None:
             # 检查并添加 llm_config_id 列
             if "llm_config_id" not in columns:
                 print("添加 llm_config_id 列到 chat_sessions 表...")
-                db.execute(text("ALTER TABLE chat_sessions ADD COLUMN llm_config_id INTEGER"))
+                db.execute(text("ALTER TABLE chat_sessions ADD COLUMN llm_config_id INTEGER NOT NULL"))
                 
                 # 添加外键约束
                 print("添加外键约束...")
-                try:
-                    db.execute(text("ALTER TABLE chat_sessions ADD CONSTRAINT fk_llm_config FOREIGN KEY (llm_config_id) REFERENCES llm_config(id)"))
-                except Exception as e:
-                    print(f"添加外键约束失败: {e}")
-                    print("尝试删除并重新添加外键约束...")
-                    db.execute(text("ALTER TABLE chat_sessions DROP FOREIGN KEY fk_llm_config"))
-                    db.execute(text("ALTER TABLE chat_sessions ADD CONSTRAINT fk_llm_config FOREIGN KEY (llm_config_id) REFERENCES llm_config(id)"))
-        
-        db.commit()
-        print("列检查完成。")
+                db.execute(text("ALTER TABLE chat_sessions ADD CONSTRAINT fk_chat_sessions_llm_config FOREIGN KEY (llm_config_id) REFERENCES llm_config(id)"))
+            
+            db.commit()
     except Exception as e:
+        print(f"添加缺失列时出错: {e}")
         db.rollback()
-        print(f"添加列时出错: {e}")
         raise
 
 def init_db(db: Session) -> None:
